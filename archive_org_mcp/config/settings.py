@@ -11,7 +11,8 @@ second reason the src/ layout was removed in Task 1.
 from __future__ import annotations
 
 from functools import lru_cache
-from importlib.metadata import PackageNotFoundError, version as _pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 from typing import Literal
 

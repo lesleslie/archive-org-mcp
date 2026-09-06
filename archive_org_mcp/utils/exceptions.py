@@ -57,9 +57,7 @@ class ResponseTooLargeError(ArchiveOrgError):
     def __init__(self, *, limit_bytes: int, seen_bytes: int) -> None:
         self.limit_bytes = limit_bytes
         self.seen_bytes = seen_bytes
-        super().__init__(
-            f"response exceeded {limit_bytes} bytes (saw at least {seen_bytes})"
-        )
+        super().__init__(f"response exceeded {limit_bytes} bytes (saw at least {seen_bytes})")
 
 
 class NotFoundError(ArchiveOrgError):
