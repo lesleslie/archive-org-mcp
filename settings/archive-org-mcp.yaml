@@ -1,0 +1,20 @@
+# archive-org-mcp defaults. Override in settings/local.yaml (gitignored) or via
+# ARCHIVE_ORG_MCP_* environment variables.
+#
+# Internet Archive states: "Please be respectful and use this free public
+# resource. While we do not have hard rate limits..." — so these politeness
+# values are self-imposed, not enforced upstream. Raise them only deliberately.
+
+tool_profile: full
+log_level: INFO
+http_port: 3054
+
+concurrency_limit: 2
+max_response_bytes: 5242880
+retry_max_attempts: 4
+backoff_base_seconds: 1.0
+backoff_multiplier: 2.0
+backoff_max_seconds: 30.0
+backoff_random_jitter: true
+http_timeout_seconds: 30.0
+cache_ttl_seconds: 3600
