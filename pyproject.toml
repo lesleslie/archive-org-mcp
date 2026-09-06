@@ -70,6 +70,17 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "unit: fast hermetic tests",
+    "integration: exercises a tool end-to-end",
+    "slow: takes more than 10 seconds",
+    "requires_network: makes a real outbound call",
+]
+addopts = "--cov=archive_org_mcp --cov-report=term-missing --cov-fail-under=70"
+
+[tool.coverage.run]
+source = ["archive_org_mcp"]
+omit = ["archive_org_mcp/__main__.py"]
 
 [tool.uv]
 constraint-dependencies = [
