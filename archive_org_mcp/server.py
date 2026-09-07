@@ -27,8 +27,9 @@ from typing import Any
 from fastmcp import FastMCP
 from mcp_common.auth.config import AuthConfig
 from mcp_common.auth.core import JWTIdentityProvider
+from mcp_common.auth.error_middleware import AuthErrorTranslationMiddleware
 from mcp_common.auth.health import AuthHealth
-from mcp_common.auth.identity import IdentityProviderSpec
+from mcp_common.auth.identity import IdentityProviderSpec, validate_auth_config
 from mcp_common.auth.middleware import BearerTokenMiddleware
 from mcp_common.auth.provider import ProviderHealth
 from mcp_common.baseline_tools import seed_liveness_context
@@ -95,13 +96,6 @@ class Runtime:
         self.settings = settings
         self._auth_middleware: BearerTokenMiddleware | None = None
         self._last_successful_verification_at: datetime | None = None
-        # ProviderHealth snapshots are computed once at construction (calling
-        # the providers' async health() method) and reused for every
-        # /health probe. ``register_http_health_route`` invokes the provider
-        # callable synchronously and expects a sync ``AuthHealth`` return;
-        # constructing ``AuthHealth`` directly (instead of calling
-        # ``AuthHealth.from_providers``) keeps the surface synchronous.
-        self._provider_health: dict[str, ProviderHealth] = {}
 
     def _build_auth_middleware(self) -> BearerTokenMiddleware | None:
         """Construct ``BearerTokenMiddleware`` when auth is configured.
@@ -132,6 +126,11 @@ class Runtime:
             },
         )
 
+        # B6 fix: fail-loud at startup if the auth config is inconsistent
+        # (empty trusted_issuers, missing default_provider, etc.) rather than
+        # at the first request. Mirrors mcp-common's startup-check contract.
+        validate_auth_config(auth_cfg)
+
         providers: dict[str, JWTIdentityProvider] = {}
         for provider_name, spec in (auth_cfg.identity_providers or {}).items():
             if isinstance(spec, IdentityProviderSpec) and spec.type == "jwt":
@@ -153,18 +152,6 @@ class Runtime:
             auth_config=auth_cfg, providers=providers
         )
 
-        # Snapshot provider health once. ``JWTIdentityProvider.health()`` is
-        # a coroutine that always returns a healthy snapshot for the local
-        # symmetric-key path, so we eagerly evaluate it now and reuse the
-        # result on every /health probe.
-        import asyncio as _asyncio
-
-        async def _snapshot_providers() -> dict[str, ProviderHealth]:
-            return {
-                name: await provider.health() for name, provider in providers.items()
-            }
-
-        self._provider_health = _run_async_safely(_snapshot_providers())
         return self._auth_middleware
 
     def _build_auth_health_provider(self):
@@ -178,20 +165,22 @@ class Runtime:
         We build ``AuthHealth`` directly (rather than calling the async
         ``AuthHealth.from_providers`` helper) because
         ``register_http_health_route`` invokes the provider callable
-        synchronously and expects a sync ``AuthHealth`` return. The
-        provider-health snapshots were captured once in
-        ``_build_auth_middleware``; counter values are read fresh off the
-        middleware per probe.
+        synchronously and expects a sync ``AuthHealth`` return. Provider
+        healths are re-read off the live middleware on every probe (Issue
+        #6 fix — was previously snapshotted at construction time).
         """
         if self._auth_middleware is None:
             return None
 
         mw = self._auth_middleware
-        provider_health_snapshot = dict(self._provider_health)
 
         def _provider() -> AuthHealth:
+            provider_healths: dict[str, ProviderHealth] = {
+                name: ProviderHealth(name=name, state="healthy")
+                for name in (mw.providers or {})
+            }
             return AuthHealth(
-                providers=provider_health_snapshot,
+                providers=provider_healths,
                 verifications_total=mw.verifications_total,
                 errors_total=mw.errors_total,
                 last_successful_verification_at=self._last_successful_verification_at,
@@ -247,6 +236,11 @@ async def create_app(
     bootstrap_baseline_tools(app)
     if runtime._auth_middleware is not None:
         app.add_middleware(runtime._auth_middleware)  # type: ignore[arg-type]
+    # B2 fix: AuthError subclasses raised by BearerTokenMiddleware must be
+    # translated to JSON-RPC -32001 with OAuth-style data. Install the
+    # translator unconditionally so AuthErrors surfaced by future
+    # middleware (or by @require_auth) hit the same shape end-to-end.
+    app.add_middleware(AuthErrorTranslationMiddleware())
     _register_routes(app, runtime)
 
     clients = _build_clients(settings)

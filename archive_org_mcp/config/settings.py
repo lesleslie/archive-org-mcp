@@ -16,7 +16,7 @@ from importlib.metadata import version as _pkg_version
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field, HttpUrl
+from pydantic import Field, HttpUrl, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -34,6 +34,7 @@ class ArchiveOrgSettings(BaseSettings):
         env_prefix="ARCHIVE_ORG_MCP_",
         env_file=str(PROJECT_ROOT / ".env"),
         env_file_encoding="utf-8",
+        env_nested_delimiter="__",
         extra="ignore",
     )
 
@@ -68,6 +69,25 @@ class ArchiveOrgSettings(BaseSettings):
     # ``None`` or empty, auth is disabled and BearerTokenMiddleware is not
     # constructed — see ``archive_org_mcp.server.Runtime._build_auth_middleware``.
     auth_config: dict[str, Any] | None = Field(default=None)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _lowercase_auth_config_keys(cls, data: Any) -> Any:
+        """Normalize ``auth_config`` dict keys to lowercase.
+
+        pydantic-settings's ``env_nested_delimiter`` parses nested env vars
+        (``ARCHIVE_ORG_MCP_AUTH_CONFIG__SECRET``) into dict keys using the
+        case of the env var name (``SECRET``), but the auth runtime reads
+        lowercase keys (``raw.get("secret")``). Lowercasing here means an
+        operator's env var works without the operator having to also
+        lowercase the env var name.
+        """
+        if not isinstance(data, dict):
+            return data
+        auth_config = data.get("auth_config")
+        if isinstance(auth_config, dict):
+            data["auth_config"] = {k.lower(): v for k, v in auth_config.items()}
+        return data
 
 
 @lru_cache(maxsize=1)
