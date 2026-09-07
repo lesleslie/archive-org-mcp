@@ -3,20 +3,34 @@
 Health surface is deliberately two routes:
   /health  — mcp_common.health.register_http_health_route, which always returns
              HTTP 200 by documented contract. Feed detail rides in
-             extra_components.
+             extra_components; auth detail rides in auth_health_provider.
   /readyz  — in-repo, returns 503 when a required feed is not ok. This is the
              route mcp-backend-wiring-discipline.md's 503 requirement refers to.
 
 create_app is async because mcp-common's profile dispatch is async; sync callers
 go through create_app_sync, which bridges via _run_async_safely.
+
+Task 14.2: Auth wiring. The ``Runtime`` class owns the
+``BearerTokenMiddleware`` instance and exposes a callable that
+``register_http_health_route`` invokes per request to surface live
+``AuthHealth`` data in the /health envelope. When auth is disabled
+(default), the middleware is not constructed and ``auth_health_provider``
+returns ``None`` — the auth component is then omitted from /health.
 """
 
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from typing import Any
 
 from fastmcp import FastMCP
+from mcp_common.auth.config import AuthConfig
+from mcp_common.auth.core import JWTIdentityProvider
+from mcp_common.auth.health import AuthHealth
+from mcp_common.auth.identity import IdentityProviderSpec
+from mcp_common.auth.middleware import BearerTokenMiddleware
+from mcp_common.auth.provider import ProviderHealth
 from mcp_common.baseline_tools import seed_liveness_context
 from mcp_common.bootstrap import bootstrap_baseline_tools
 from mcp_common.health import register_http_health_route
@@ -67,13 +81,133 @@ def _build_clients(settings: ArchiveOrgSettings) -> ClientBundle:
     )
 
 
-def _register_routes(app: FastMCP) -> None:
+class Runtime:
+    """Wraps ``ArchiveOrgSettings`` and lazily constructs the FastMCP app.
+
+    Task 14.2: this class is also the home of the ``BearerTokenMiddleware``
+    wiring. ``_build_auth_middleware`` constructs the middleware from the
+    settings' ``auth_config`` dict; ``_build_auth_health_provider`` returns
+    a callable that ``register_http_health_route`` invokes per request to
+    populate the ``auth`` component in the /health envelope.
+    """
+
+    def __init__(self, *, settings: ArchiveOrgSettings) -> None:
+        self.settings = settings
+        self._auth_middleware: BearerTokenMiddleware | None = None
+        self._last_successful_verification_at: datetime | None = None
+        # ProviderHealth snapshots are computed once at construction (calling
+        # the providers' async health() method) and reused for every
+        # /health probe. ``register_http_health_route`` invokes the provider
+        # callable synchronously and expects a sync ``AuthHealth`` return;
+        # constructing ``AuthHealth`` directly (instead of calling
+        # ``AuthHealth.from_providers``) keeps the surface synchronous.
+        self._provider_health: dict[str, ProviderHealth] = {}
+
+    def _build_auth_middleware(self) -> BearerTokenMiddleware | None:
+        """Construct ``BearerTokenMiddleware`` when auth is configured.
+
+        Returns ``None`` when ``settings.auth_config`` is missing or empty —
+        the /health route then omits the auth component entirely.
+
+        I-9 fix (Task 14.2 variant): guard that ``AuthConfig.resolved_secret``
+        is not None before passing the JWT provider. A misconfigured sibling
+        that enables auth but forgets to set the secret would otherwise crash
+        with ``SecretNotConfiguredError`` inside ``JWTIdentityProvider.__init__``.
+        We surface that as a RuntimeError so the failure mode is loud at
+        startup, not silent on the first request.
+        """
+        raw = self.settings.auth_config or {}
+        if not raw.get("enabled"):
+            return None
+
+        # Inject service_name from APP_NAME so the operator's settings.yaml
+        # does not need to repeat it. IdentityProviderSpec entries are passed
+        # through verbatim from the operator-supplied dict.
+        auth_cfg = AuthConfig(
+            service_name=APP_NAME,
+            **{
+                k: v
+                for k, v in raw.items()
+                if k != "service_name"
+            },
+        )
+
+        providers: dict[str, JWTIdentityProvider] = {}
+        for provider_name, spec in (auth_cfg.identity_providers or {}).items():
+            if isinstance(spec, IdentityProviderSpec) and spec.type == "jwt":
+                if auth_cfg.resolved_secret is None:
+                    raise RuntimeError(
+                        "auth.identity_providers['"
+                        + provider_name
+                        + "'] is type=jwt but auth.secret is None — set "
+                        "ARCHIVE_ORG_MCP_AUTH_CONFIG__SECRET or "
+                        "BODAI_SHARED_SECRET, or disable auth."
+                    )
+                providers[provider_name] = JWTIdentityProvider(
+                    name=provider_name,
+                    secret=auth_cfg.resolved_secret,
+                    trusted_issuers=auth_cfg.trusted_issuers,
+                )
+
+        self._auth_middleware = BearerTokenMiddleware(
+            auth_config=auth_cfg, providers=providers
+        )
+
+        # Snapshot provider health once. ``JWTIdentityProvider.health()`` is
+        # a coroutine that always returns a healthy snapshot for the local
+        # symmetric-key path, so we eagerly evaluate it now and reuse the
+        # result on every /health probe.
+        import asyncio as _asyncio
+
+        async def _snapshot_providers() -> dict[str, ProviderHealth]:
+            return {
+                name: await provider.health() for name, provider in providers.items()
+            }
+
+        self._provider_health = _run_async_safely(_snapshot_providers())
+        return self._auth_middleware
+
+    def _build_auth_health_provider(self):
+        """Return a callable that surfaces ``AuthHealth`` to ``/health``.
+
+        Per ``mcp-surface-health-illusion.md``, returning ``None`` keeps the
+        auth component out of the envelope when auth is disabled. The
+        callable is invoked per request (not captured at registration) so
+        transient provider flips surface in the next probe.
+
+        We build ``AuthHealth`` directly (rather than calling the async
+        ``AuthHealth.from_providers`` helper) because
+        ``register_http_health_route`` invokes the provider callable
+        synchronously and expects a sync ``AuthHealth`` return. The
+        provider-health snapshots were captured once in
+        ``_build_auth_middleware``; counter values are read fresh off the
+        middleware per probe.
+        """
+        if self._auth_middleware is None:
+            return None
+
+        mw = self._auth_middleware
+        provider_health_snapshot = dict(self._provider_health)
+
+        def _provider() -> AuthHealth:
+            return AuthHealth(
+                providers=provider_health_snapshot,
+                verifications_total=mw.verifications_total,
+                errors_total=mw.errors_total,
+                last_successful_verification_at=self._last_successful_verification_at,
+            )
+
+        return _provider
+
+
+def _register_routes(app: FastMCP, runtime: Runtime) -> None:
     """Register /health (always 200) and /readyz (503 on degraded)."""
     register_http_health_route(
         app,
         service_name=APP_NAME,
         version=__version__,
         extra_components=as_components(),
+        auth_health_provider=runtime._build_auth_health_provider(),
     )
 
     @app.custom_route("/readyz", methods=["GET"])
@@ -92,16 +226,28 @@ def _register_routes(app: FastMCP) -> None:
         )
 
 
-async def create_app(settings: ArchiveOrgSettings | None = None) -> FastMCP:
+async def create_app(
+    settings: ArchiveOrgSettings | None = None,
+    *,
+    runtime: Runtime | None = None,
+) -> FastMCP:
     """Build the configured FastMCP application."""
     if settings is None:
         settings = get_settings()
+    if runtime is None:
+        runtime = Runtime(settings=settings)
+
+    # Construct auth middleware at lifespan entry so failures (misconfigured
+    # providers, missing secrets) surface at startup, not on first request.
+    runtime._build_auth_middleware()
 
     app = FastMCP(name=APP_NAME, version=__version__)
 
     seed_liveness_context(service_name=APP_NAME, version=__version__)
     bootstrap_baseline_tools(app)
-    _register_routes(app)
+    if runtime._auth_middleware is not None:
+        app.add_middleware(runtime._auth_middleware)  # type: ignore[arg-type]
+    _register_routes(app, runtime)
 
     clients = _build_clients(settings)
     await _apply_tool_profile(
@@ -128,9 +274,13 @@ def _register_all_groups(server: FastMCP, clients: ClientBundle) -> None:
     register_all_tool_groups(server, clients)
 
 
-def create_app_sync(settings: ArchiveOrgSettings | None = None) -> FastMCP:
+def create_app_sync(
+    settings: ArchiveOrgSettings | None = None,
+    *,
+    runtime: Runtime | None = None,
+) -> FastMCP:
     """Sync wrapper around create_app for CLI and __main__ entry points."""
-    return _run_async_safely(create_app(settings))
+    return _run_async_safely(create_app(settings, runtime=runtime))
 
 
 def run() -> None:

@@ -14,7 +14,7 @@ from functools import lru_cache
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, HttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -61,6 +61,13 @@ class ArchiveOrgSettings(BaseSettings):
     # or via ARCHIVE_ORG_MCP_USER_AGENT once the repo is pushed. The default still
     # identifies the client and version per IA's politeness guidance.
     user_agent: str = f"archive-org-mcp/{_VERSION}"
+
+    # Task 14.2 (mcp-common auth primitives): optional auth wiring for the
+    # /health and /readyz surfaces. The runtime converts this dict into an
+    # AuthConfig (injecting service_name at server-construction time). When
+    # ``None`` or empty, auth is disabled and BearerTokenMiddleware is not
+    # constructed — see ``archive_org_mcp.server.Runtime._build_auth_middleware``.
+    auth_config: dict[str, Any] | None = Field(default=None)
 
 
 @lru_cache(maxsize=1)
