@@ -1,5 +1,16 @@
 {
-  "metadata": {"identifier": "nasa-apollo11", "title": "Apollo 11", "mediatype": "movies"},
-  "files": [{"name": "apollo11.mp4"}, {"name": "apollo11.srt"}],
+  "files": [
+    {
+      "name": "apollo11.mp4"
+    },
+    {
+      "name": "apollo11.srt"
+    }
+  ],
+  "metadata": {
+    "identifier": "nasa-apollo11",
+    "mediatype": "movies",
+    "title": "Apollo 11"
+  },
   "server": "ia801504.us.archive.org"
 }

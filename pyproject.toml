@@ -76,7 +76,7 @@ markers = [
     "slow: takes more than 10 seconds",
     "requires_network: makes a real outbound call",
 ]
-addopts = "--cov=archive_org_mcp --cov-report=term-missing --cov-fail-under=70"
+addopts = "--cov=archive_org_mcp --cov-report=term-missing --cov-fail-under=85"
 
 [tool.coverage.run]
 source = ["archive_org_mcp"]

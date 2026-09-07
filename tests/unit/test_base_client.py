@@ -87,6 +87,54 @@ class TestGetJson:
                     await client.get_json("https://example.org/x")
         assert excinfo.value.retry_after == 42.0
 
+    async def test_unparseable_retry_after_yields_none(self) -> None:
+        """A Retry-After header that isn't a float must not crash — it is
+        ignored and the exception still surfaces."""
+        settings = ArchiveOrgSettings(retry_max_attempts=0)
+        fake = _client_with([_response(429, headers={"Retry-After": "soonish"})])
+        with patch(PATCH_TARGET) as mod:
+            mod.AsyncClient.return_value = fake
+            async with ArchiveOrgBaseClient(settings) as client:
+                with pytest.raises(RateLimitedError) as excinfo:
+                    await client.get_json("https://example.org/x")
+        assert excinfo.value.retry_after is None
+
+    async def test_get_bytes_raises_not_found_on_404(self) -> None:
+        """get_bytes raises just like get_json does — no silent acceptance."""
+        settings = ArchiveOrgSettings(retry_max_attempts=0)
+        response = MagicMock()
+        response.status_code = 404
+        response.headers = {}
+        stream_ctx = MagicMock()
+        stream_ctx.__aenter__ = AsyncMock(return_value=response)
+        stream_ctx.__aexit__ = AsyncMock(return_value=False)
+        fake = MagicMock()
+        fake.stream = MagicMock(return_value=stream_ctx)
+        fake.aclose = AsyncMock()
+        with patch(PATCH_TARGET) as mod:
+            mod.AsyncClient.return_value = fake
+            async with ArchiveOrgBaseClient(settings) as client:
+                with pytest.raises(NotFoundError):
+                    await client.get_bytes("https://example.org/missing")
+
+    async def test_get_bytes_raises_rate_limited_on_429(self) -> None:
+        settings = ArchiveOrgSettings(retry_max_attempts=0)
+        response = MagicMock()
+        response.status_code = 429
+        response.headers = {"Retry-After": "5"}
+        stream_ctx = MagicMock()
+        stream_ctx.__aenter__ = AsyncMock(return_value=response)
+        stream_ctx.__aexit__ = AsyncMock(return_value=False)
+        fake = MagicMock()
+        fake.stream = MagicMock(return_value=stream_ctx)
+        fake.aclose = AsyncMock()
+        with patch(PATCH_TARGET) as mod:
+            mod.AsyncClient.return_value = fake
+            async with ArchiveOrgBaseClient(settings) as client:
+                with pytest.raises(RateLimitedError) as excinfo:
+                    await client.get_bytes("https://example.org/x")
+        assert excinfo.value.retry_after == 5.0
+
     async def test_5xx_is_retried_then_raises(self) -> None:
         settings = ArchiveOrgSettings(
             retry_max_attempts=2, backoff_base_seconds=0.0, backoff_max_seconds=0.0

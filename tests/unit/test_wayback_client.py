@@ -107,3 +107,32 @@ class TestClosest:
         await client.closest("https://example.org/", "2024")
         params = base.get_json.await_args.args[1]
         assert params["timestamp"] == "20240000000000"
+
+    async def test_non_dict_body_returns_none(self) -> None:
+        client, _ = _client([])
+        assert await client.closest("https://example.org/", "20240115") is None
+
+    async def test_non_dict_closest_returns_none(self) -> None:
+        client, _ = _client({"archived_snapshots": {"closest": "not a dict"}})
+        assert await client.closest("https://example.org/", "20240115") is None
+
+    async def test_closest_without_timestamp_returns_none(self) -> None:
+        client, _ = _client({"archived_snapshots": {"closest": {"status": "200"}}})
+        assert await client.closest("https://example.org/", "20240115") is None
+
+    async def test_parse_cdx_tolerates_non_list_body(self) -> None:
+        client, _ = _client("not a list")
+        assert await client.snapshots("https://example.org/") == []
+
+    async def test_parse_cdx_tolerates_non_list_header(self) -> None:
+        client, _ = _client(["not a header row"])
+        assert await client.snapshots("https://example.org/") == []
+
+    async def test_parse_cdx_skips_non_list_rows(self) -> None:
+        client, _ = _client([CDX_HEADER, "rogue row", ["ok", "url"]])
+        # The "rogue row" is skipped — Snapshot.from_cdx_row requires the row
+        # to be a list, so a non-list row is filtered before construction.
+        result = await client.snapshots("https://example.org/")
+        # The valid row only has 2 cells, mapping to header columns
+        # ["timestamp", "original"]; everything else becomes None.
+        assert len(result) == 1

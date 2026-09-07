@@ -109,12 +109,23 @@ async def create_app(settings: ArchiveOrgSettings | None = None) -> FastMCP:
         profile_env_var="ARCHIVE_ORG_MCP_TOOL_PROFILE",
         registrations=PROFILE_REGISTRATIONS,
         registration_map=_build_registration_map(clients),
-        register_all_fn=lambda srv: register_all_tool_groups(srv, clients),
+        register_all_fn=lambda srv: _register_all_groups(srv, clients),
         mandatory_groups=ARCHIVE_ORG_MANDATORY_GROUPS,
         essential_tool_names={"health_check_all"},
     )
     logger.info("archive-org-mcp-ready", version=__version__)
     return app
+
+
+def _register_all_groups(server: FastMCP, clients: ClientBundle) -> None:
+    """Bridge that drops the tool-group→tool-name map return type.
+
+    ``register_all_tool_groups`` returns the map for the test helper
+    convenience, but ``_apply_tool_profile``'s ``register_all_fn`` signature is
+    ``Callable[[FastMCP], Awaitable[None] | None]``. Discard the return value
+    to satisfy the signature without breaking the helper.
+    """
+    register_all_tool_groups(server, clients)
 
 
 def create_app_sync(settings: ArchiveOrgSettings | None = None) -> FastMCP:

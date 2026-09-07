@@ -7,12 +7,13 @@ the dual-track drift pattern recorded on 2026-08-29.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from mcp_common.tools.dispatch import ALL_TOOLS, ToolProfile
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from fastmcp import FastMCP
 
     from archive_org_mcp.clients.catalog_client import CatalogClient
@@ -46,10 +47,10 @@ FULL_REGISTRATIONS: list[str] = [
 PROFILE_REGISTRATIONS: dict[
     ToolProfile,
     list[str | Callable[[FastMCP], Awaitable[None] | None]] | type[ALL_TOOLS],
-] = {
-    ToolProfile.MINIMAL: MINIMAL_REGISTRATIONS,
-    ToolProfile.STANDARD: STANDARD_REGISTRATIONS,
-    ToolProfile.FULL: FULL_REGISTRATIONS,
+] = {  # ty: ignore[invalid-assignment]
+    ToolProfile.MINIMAL: MINIMAL_REGISTRATIONS.copy(),
+    ToolProfile.STANDARD: STANDARD_REGISTRATIONS.copy(),
+    ToolProfile.FULL: FULL_REGISTRATIONS.copy(),
 }
 
 ARCHIVE_ORG_MANDATORY_GROUPS: set[str] = {"health_tools"}
@@ -64,7 +65,6 @@ def _register_health_tools(server: FastMCP) -> None:
     that the profile dispatch table carries the group key and the mandatory_groups
     contract resolves, matching the medium-mcp and scapy-mcp patterns.
     """
-    return
 
 
 def _build_registration_map(

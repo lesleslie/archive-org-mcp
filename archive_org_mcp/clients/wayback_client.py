@@ -43,13 +43,9 @@ class WaybackClient:
             ValueError: If `match_type` or `collapse` is not a documented value.
         """
         if match_type not in get_args(MatchType):
-            raise ValueError(
-                f"match_type must be one of {get_args(MatchType)}, got {match_type!r}"
-            )
+            raise ValueError(f"match_type must be one of {get_args(MatchType)}, got {match_type!r}")
         if collapse is not None and collapse not in get_args(CollapseField):
-            raise ValueError(
-                f"collapse must be one of {get_args(CollapseField)}, got {collapse!r}"
-            )
+            raise ValueError(f"collapse must be one of {get_args(CollapseField)}, got {collapse!r}")
 
         params: dict[str, str | int] = {
             "url": url,
@@ -91,9 +87,7 @@ class WaybackClient:
             "url": url,
             "timestamp": normalize_timestamp(timestamp) or "",
         }
-        body = await self._base.get_json(
-            str(self._settings.availability_base_url), params
-        )
+        body = await self._base.get_json(str(self._settings.availability_base_url), params)
         if not isinstance(body, dict):
             return None
         closest = body.get("archived_snapshots", {}).get("closest")

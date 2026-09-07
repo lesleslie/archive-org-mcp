@@ -59,8 +59,7 @@ def register_wayback_tools(server: FastMCP, client: WaybackClient) -> None:
             raise
         feed.record_cycle(entities=len(snapshots))
         return [
-            snapshot.model_dump() | {"wayback_url": snapshot.wayback_url}
-            for snapshot in snapshots
+            snapshot.model_dump() | {"wayback_url": snapshot.wayback_url} for snapshot in snapshots
         ]
 
     @server.tool()

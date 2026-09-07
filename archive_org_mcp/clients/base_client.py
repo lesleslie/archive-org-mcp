@@ -12,7 +12,6 @@ just costs IA bandwidth.
 from __future__ import annotations
 
 import asyncio
-from types import TracebackType
 from typing import TYPE_CHECKING
 
 import httpx2 as httpx
@@ -26,6 +25,8 @@ from archive_org_mcp.utils.exceptions import (
 )
 
 if TYPE_CHECKING:
+    from types import TracebackType
+
     from archive_org_mcp.config.settings import ArchiveOrgSettings
 
 logger = get_logger("archive_org_mcp.client")
@@ -74,7 +75,7 @@ class ArchiveOrgBaseClient:
                 if raw is not None:
                     try:
                         retry_after = float(raw)
-                    except (TypeError, ValueError):
+                    except TypeError, ValueError:
                         retry_after = None
             raise RateLimitedError(
                 "archive.org is throttling this client",
@@ -102,7 +103,7 @@ class ArchiveOrgBaseClient:
             try:
                 async with self._semaphore:
                     response = await self._client.get(url, params=params)
-                status = int(response.status_code)
+                status = response.status_code
                 if status < 400:
                     return response.json()
                 self._raise_for_status(status, url, response.headers)
@@ -147,19 +148,18 @@ class ArchiveOrgBaseClient:
 
         buffer = bytearray()
         truncated = False
-        async with self._semaphore:
-            async with self._client.stream("GET", url) as response:
-                status = int(response.status_code)
-                if status >= 400:
-                    self._raise_for_status(status, url, response.headers)
-                async for chunk in response.aiter_bytes():
-                    remaining = ceiling - len(buffer)
-                    if remaining <= 0:
-                        truncated = True
-                        break
-                    if len(chunk) > remaining:
-                        buffer.extend(chunk[:remaining])
-                        truncated = True
-                        break
-                    buffer.extend(chunk)
+        async with self._semaphore, self._client.stream("GET", url) as response:
+            status = response.status_code
+            if status >= 400:
+                self._raise_for_status(status, url, response.headers)
+            async for chunk in response.aiter_bytes():
+                remaining = ceiling - len(buffer)
+                if remaining <= 0:
+                    truncated = True
+                    break
+                if len(chunk) > remaining:
+                    buffer.extend(chunk[:remaining])
+                    truncated = True
+                    break
+                buffer.extend(chunk)
         return bytes(buffer), truncated
