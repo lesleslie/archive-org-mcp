@@ -1,0 +1,42 @@
+[
+  {
+    "timestamp": "19970126045828",
+    "original": "http://www.archive.org:80/",
+    "mimetype": "text/html",
+    "statuscode": "200",
+    "digest": "Q4YULN754FHV2U6Q5JUT6Q2P57WEWNNY",
+    "length": 1415
+  },
+  {
+    "timestamp": "19971011050034",
+    "original": "http://www.archive.org:80/",
+    "mimetype": "text/html",
+    "statuscode": "200",
+    "digest": "XAHDNHZ5P3GSSSNJ3DMEOJF7BMCCPZR3",
+    "length": 1402
+  },
+  {
+    "timestamp": "19971211122953",
+    "original": "http://www.archive.org:80/",
+    "mimetype": "text/html",
+    "statuscode": "200",
+    "digest": "XAHDNHZ5P3GSSSNJ3DMEOJF7BMCCPZR3",
+    "length": 1405
+  },
+  {
+    "timestamp": "19971211122953",
+    "original": "http://www.archive.org:80/",
+    "mimetype": "text/html",
+    "statuscode": "200",
+    "digest": "XAHDNHZ5P3GSSSNJ3DMEOJF7BMCCPZR3",
+    "length": 1405
+  },
+  {
+    "timestamp": "19980109140106",
+    "original": "http://archive.org:80/",
+    "mimetype": "text/html",
+    "statuscode": "200",
+    "digest": "XAHDNHZ5P3GSSSNJ3DMEOJF7BMCCPZR3",
+    "length": 1402
+  }
+]
