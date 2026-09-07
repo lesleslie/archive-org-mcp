@@ -1,0 +1,5 @@
+[
+  ["timestamp", "original", "mimetype", "statuscode", "digest", "length"],
+  ["20240115123045", "https://example.org/", "text/html", "200", "AAA111", "4096"],
+  ["20240220081500", "https://example.org/", "text/html", "200", "BBB222", "4211"]
+]

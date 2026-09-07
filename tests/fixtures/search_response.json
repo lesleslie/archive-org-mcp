@@ -1,0 +1,10 @@
+{
+  "response": {
+    "numFound": 2,
+    "start": 0,
+    "docs": [
+      {"identifier": "nasa-apollo11", "title": "Apollo 11", "mediatype": "movies", "date": "1969-07-20T00:00:00Z"},
+      {"identifier": "gutenberg-1342", "title": "Pride and Prejudice", "mediatype": "texts", "date": "1813-01-28T00:00:00Z"}
+    ]
+  }
+}
