@@ -1,8 +1,7 @@
-"""archive-org-mcp: MCP server for archive.org (Internet Archive / Wayback Machine).
-
-Scaffold status: PyPI name reservation only. Implementation pending.
-"""
+"""archive-org-mcp — Internet Archive access via MCP."""
 
 from __future__ import annotations
 
 __version__ = "0.1.0"
+
+__all__ = ["__version__"]

@@ -1,21 +1,14 @@
-"""archive-org-mcp CLI entry point.
-
-Scaffold stub. Real entry point will dispatch to the FastMCP server
-once the server module is implemented.
-"""
+"""Console-script entry point."""
 
 from __future__ import annotations
 
-import sys
+from archive_org_mcp.server import run
 
 
-def main() -> int:
-    """Placeholder entry point. Prints version and exits."""
-    from archive_org_mcp import __version__
-
-    print(f"archive-org-mcp {__version__} (scaffold — not yet implemented)")
-    return 0
+def main() -> None:
+    """Start the archive-org-mcp server over stdio."""
+    run()
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
