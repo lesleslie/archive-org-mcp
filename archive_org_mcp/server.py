@@ -21,8 +21,10 @@ returns ``None`` — the auth component is then omitted from /health.
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 from fastmcp import FastMCP
 from mcp_common.auth.config import AuthConfig
@@ -31,7 +33,7 @@ from mcp_common.auth.error_middleware import AuthErrorTranslationMiddleware
 from mcp_common.auth.health import AuthHealth
 from mcp_common.auth.identity import IdentityProviderSpec, validate_auth_config
 from mcp_common.auth.middleware import BearerTokenMiddleware
-from mcp_common.auth.provider import ProviderHealth
+from mcp_common.auth.provider import IdentityProvider, ProviderHealth
 from mcp_common.baseline_tools import seed_liveness_context
 from mcp_common.bootstrap import bootstrap_baseline_tools
 from mcp_common.health import register_http_health_route
@@ -119,19 +121,26 @@ class Runtime:
         # through verbatim from the operator-supplied dict.
         auth_cfg = AuthConfig(
             service_name=APP_NAME,
-            **{
-                k: v
-                for k, v in raw.items()
-                if k != "service_name"
-            },
+            **{k: v for k, v in raw.items() if k != "service_name"},
         )
 
         # B6 fix: fail-loud at startup if the auth config is inconsistent
         # (empty trusted_issuers, missing default_provider, etc.) rather than
         # at the first request. Mirrors mcp-common's startup-check contract.
-        validate_auth_config(auth_cfg)
+        try:
+            validate_auth_config(auth_cfg)
+        except ValueError as exc:
+            # Translate mcp-common's internal ValueError into the operator-facing
+            # RuntimeError contract this project publishes (see test_auth_wiring
+            # and prior docs). Surface "auth.secret is None" plus the env-var
+            # remediation hint so operators know exactly which secret to set.
+            raise RuntimeError(
+                f"auth.identity_providers validation failed: {exc} — "
+                "auth.secret is None. Set ARCHIVE_ORG_MCP_AUTH_CONFIG__SECRET "
+                "or BODAI_SHARED_SECRET, or disable auth."
+            ) from exc
 
-        providers: dict[str, JWTIdentityProvider] = {}
+        providers: dict[str, IdentityProvider] = {}
         for provider_name, spec in (auth_cfg.identity_providers or {}).items():
             if isinstance(spec, IdentityProviderSpec) and spec.type == "jwt":
                 if auth_cfg.resolved_secret is None:
@@ -148,9 +157,7 @@ class Runtime:
                     trusted_issuers=auth_cfg.trusted_issuers,
                 )
 
-        self._auth_middleware = BearerTokenMiddleware(
-            auth_config=auth_cfg, providers=providers
-        )
+        self._auth_middleware = BearerTokenMiddleware(auth_config=auth_cfg, providers=providers)
 
         return self._auth_middleware
 
@@ -176,8 +183,7 @@ class Runtime:
 
         def _provider() -> AuthHealth:
             provider_healths: dict[str, ProviderHealth] = {
-                name: ProviderHealth(name=name, state="healthy")
-                for name in (mw.providers or {})
+                name: ProviderHealth(name=name, state="healthy") for name in (mw._providers or {})
             }
             return AuthHealth(
                 providers=provider_healths,

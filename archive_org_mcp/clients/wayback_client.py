@@ -90,11 +90,17 @@ class WaybackClient:
         body = await self._base.get_json(str(self._settings.availability_base_url), params)
         if not isinstance(body, dict):
             return None
-        closest = body.get("archived_snapshots", {}).get("closest")
-        if not isinstance(closest, dict) or not closest.get("timestamp"):
+        snapshots = body.get("archived_snapshots")
+        if not isinstance(snapshots, dict):
+            return None
+        closest = snapshots.get("closest")
+        if not isinstance(closest, dict):
+            return None
+        ts_raw = closest.get("timestamp")
+        if not ts_raw:
             return None
         return Snapshot(
-            timestamp=str(closest["timestamp"]),
+            timestamp=str(ts_raw),
             original=url,
             statuscode=str(closest.get("status")) if closest.get("status") else None,
         )

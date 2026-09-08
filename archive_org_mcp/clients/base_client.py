@@ -72,10 +72,10 @@ class ArchiveOrgBaseClient:
             retry_after: float | None = None
             if isinstance(headers, dict):
                 raw = headers.get("Retry-After")
-                if raw is not None:
+                if isinstance(raw, (str, int, float)):
                     try:
                         retry_after = float(raw)
-                    except TypeError, ValueError:
+                    except ValueError:
                         retry_after = None
             raise RateLimitedError(
                 "archive.org is throttling this client",

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from archive_org_mcp.models.catalog import CatalogItem, ItemMetadata
 from archive_org_mcp.utils.exceptions import NotFoundError
@@ -44,10 +44,13 @@ class CatalogClient:
         body = await self._base.get_json(str(self._settings.search_base_url), params)
         if not isinstance(body, dict):
             return []
-        docs = body.get("response", {}).get("docs")
+        response_obj = body.get("response")
+        if not isinstance(response_obj, dict):
+            return []
+        docs = response_obj.get("docs")
         if not isinstance(docs, list):
             return []
-        return [CatalogItem.from_doc(doc) for doc in docs if isinstance(doc, dict)]
+        return [CatalogItem.from_doc(cast("dict", doc)) for doc in docs if isinstance(doc, dict)]
 
     async def metadata(self, identifier: str) -> ItemMetadata:
         """Fetch metadata for one identifier.
@@ -62,9 +65,11 @@ class CatalogClient:
         if not isinstance(body, dict) or not body:
             raise NotFoundError(f"no catalog item with identifier {identifier!r}")
         files = body.get("files")
+        raw_metadata = body.get("metadata")
+        raw_server = body.get("server")
         return ItemMetadata(
             identifier=identifier,
-            metadata=body.get("metadata", {}) or {},
+            metadata=cast("dict", raw_metadata) if isinstance(raw_metadata, dict) else {},
             files_count=len(files) if isinstance(files, list) else 0,
-            server=body.get("server"),
+            server=raw_server if isinstance(raw_server, str) else None,
         )
