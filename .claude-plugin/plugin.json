@@ -1,0 +1,11 @@
+{
+  "author": {
+    "name": "Bodai"
+  },
+  "description": "Bodai plugin for the Internet Archive Wayback Machine and catalog MCP server.",
+  "keywords": ["bodai", "mcp", "archive-org", "web-archives"],
+  "mcpServers": "./.mcp.json",
+  "name": "archive-org",
+  "schema_version": "1.0.0",
+  "version": "0.1.0"
+}

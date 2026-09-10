@@ -1,0 +1,6 @@
+{
+  "archive-org": {
+    "type": "http",
+    "url": "http://localhost:3054/mcp"
+  }
+}
