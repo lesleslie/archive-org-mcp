@@ -59,7 +59,7 @@ ARCHIVE_ORG_MANDATORY_GROUPS: set[str] = {"health_tools"}
 def _register_health_tools(server: FastMCP) -> None:
     """Health tool group — present at every profile.
 
-    The four Bodai baseline tools (discover_tools, get_liveness, get_readiness,
+    The four mcp-common baseline tools (discover_tools, get_liveness, get_readiness,
     health_check_all) are registered globally by bootstrap_baseline_tools in
     server.create_app(), so this group is intentionally a no-op. It exists so
     that the profile dispatch table carries the group key and the mandatory_groups
