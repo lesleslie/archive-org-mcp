@@ -1,9 +1,13 @@
 {
   "author": {
-    "name": "Bodai"
+    "name": "Wedgwood Web Works"
   },
-  "description": "Bodai plugin for the Internet Archive Wayback Machine and catalog MCP server.",
-  "keywords": ["bodai", "mcp", "archive-org", "web-archives"],
+  "description": "Plugin for the Internet Archive Wayback Machine and catalog MCP server.",
+  "keywords": [
+    "mcp",
+    "archive-org",
+    "web-archives"
+  ],
   "mcpServers": "./.mcp.json",
   "name": "archive-org",
   "schema_version": "1.0.0",
