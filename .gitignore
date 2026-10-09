@@ -50,7 +50,6 @@ dist/
 docs/assets/images/.scratch/
 docs/assets/images/.scratch/**
 
-
 # >>> bodai-shared-gitignore >>>
 # Source of truth: crackerjack/templates/GITIGNORE_BODAI.md
 # Enforced by: crackerjack check `gitignore-conformance`
@@ -80,3 +79,7 @@ playwright-report/
 playwright-results.json
 test-results/
 # <<< bodai-shared-gitignore <<<
+
+# Per-machine configuration (un-tracked; tracked shareable defaults live at settings/<name>.yaml)
+settings/local.yaml
+.claude/  # Claude Code artifacts (agents, skills, hooks, settings.local.json) — un-tracked per Claude Code convention
